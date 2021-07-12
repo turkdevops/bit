@@ -325,7 +325,12 @@ export class DependencyResolverMain {
     if (!entry) {
       return DependencyList.fromArray([]);
     }
-    const serializedDependencies: SerializedDependency[] = get(entry, ['data', 'dependencies'], []);
+    const serializedDependencies: SerializedDependency[] = entry?.data?.dependencies || [];
+    const policy = entry?.data?.policy || [];
+    serializedDependencies.forEach((dep) => {
+      const policyRecord = policy.find((_) => _.dependencyId === dep.id);
+      dep.source = policyRecord?.source;
+    });
     return this.getDependenciesFromSerializedDependencies(serializedDependencies);
   }
 
@@ -707,7 +712,7 @@ export class DependencyResolverMain {
     if (env.getDependencies && typeof env.getDependencies === 'function') {
       const policiesFromEnvConfig = await env.getDependencies();
       if (policiesFromEnvConfig) {
-        policiesFromEnv = variantPolicyFactory.fromConfigObject(policiesFromEnvConfig);
+        policiesFromEnv = variantPolicyFactory.fromConfigObject(policiesFromEnvConfig, 'env');
       }
     }
     const configuredIds = configuredExtensions.ids;
@@ -723,15 +728,16 @@ export class DependencyResolverMain {
       });
 
       if (policyTupleToApply && policyTupleToApply[1]) {
-        const currentPolicy = variantPolicyFactory.fromConfigObject(policyTupleToApply[1]);
+        const currentPolicy = variantPolicyFactory.fromConfigObject(policyTupleToApply[1], 'slots');
         policiesFromSlots = VariantPolicy.mergePolices([policiesFromSlots, currentPolicy]);
       }
     });
     const currentExtension = configuredExtensions.findExtension(DependencyResolverAspect.id);
     const currentConfig = (currentExtension?.config as unknown) as DependencyResolverVariantConfig;
     if (currentConfig && currentConfig.policy) {
-      policiesFromConfig = variantPolicyFactory.fromConfigObject(currentConfig.policy);
+      policiesFromConfig = variantPolicyFactory.fromConfigObject(currentConfig.policy, 'config');
     }
+
     const result = VariantPolicy.mergePolices([policiesFromEnv, policiesFromSlots, policiesFromConfig]);
     return result;
   }
